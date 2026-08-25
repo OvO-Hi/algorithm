@@ -16,22 +16,63 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Move LeetCode problems
+      - name: Organize LeetCode submissions
         shell: bash
         run: |
-          mkdir -p LeetCode
-
           shopt -s nullglob
 
+          mkdir -p LeetCode
+
           for dir in [0-9][0-9][0-9][0-9]-*/; do
+
             problem="${dir%/}"
+            destination="LeetCode/$problem"
 
-            echo "Moving $problem to LeetCode/$problem"
+            echo "Processing $problem"
 
-            mkdir -p "LeetCode/$problem"
+            mkdir -p "$destination"
 
-            cp -a "$problem/." "LeetCode/$problem/"
-            rm -rf "$problem"
+            # 문제 설명 README는 최신 버전으로 유지
+            if [ -f "$dir/README.md" ]; then
+              cp "$dir/README.md" "$destination/README.md"
+            fi
+
+            # 코드 파일 처리
+            for file in "$dir"*; do
+
+              if [ ! -f "$file" ]; then
+                continue
+              fi
+
+              filename=$(basename "$file")
+
+              # README는 위에서 처리했으므로 제외
+              if [ "$filename" = "README.md" ]; then
+                continue
+              fi
+
+              extension="${filename##*.}"
+
+              # 기존 submission 개수 확인
+              count=$(find "$destination" -maxdepth 1 \
+                -type f \
+                -name "submission-*.*" | wc -l)
+
+              next=$((count + 1))
+
+              number=$(printf "%02d" "$next")
+
+              newfile="$destination/submission-$number.$extension"
+
+              echo "Saving $filename as $newfile"
+
+              cp "$file" "$newfile"
+
+            done
+
+            # LeetHub가 만든 루트 문제 폴더 삭제
+            rm -rf "$dir"
+
           done
 
       - name: Commit organized files
@@ -42,9 +83,9 @@ jobs:
           git add -A
 
           if git diff --cached --quiet; then
-            echo "No LeetCode problems to organize."
+            echo "No LeetCode submissions to organize."
             exit 0
           fi
 
-          git commit -m "chore: organize LeetCode solutions"
+          git commit -m "chore: archive LeetCode submission"
           git push
